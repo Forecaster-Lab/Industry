@@ -70,3 +70,20 @@ When your database is ready, replace each provider `fetch()` implementation with
 
 This repo now includes `QuantumIndustryBusinessAnalysisEngine` that converts upstream-midstream-downstream and policy/security signals into monthly business factors with `available_date` alignment.
 It supports reserved LLM workflow metadata for future agentic extraction and decision loops.
+
+
+## Render deploy fix
+
+This repository now includes `render.yaml` and `Procfile` so Render detects a Python web service instead of defaulting to Node build commands.
+
+- Build: `pip install -r requirements.txt`
+- Start: `uvicorn src.web.app:app --host 0.0.0.0 --port $PORT`
+
+
+### If your Render dashboard is locked to Node commands
+
+If you must keep:
+- Build Command: `npm install && npm run build`
+- Start Command: `npm start` (or `npm run start`)
+
+this repo now includes a compatibility `package.json` that proxies startup to FastAPI/uvicorn.
