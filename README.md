@@ -86,4 +86,4 @@ If you must keep:
 - Build Command: `npm install && npm run build`
 - Start Command: `npm start` (or `npm run start`)
 
-this repo now includes a compatibility `package.json` that proxies startup to FastAPI/uvicorn.
+this repo now includes a compatibility `package.json` that creates a local `.venv` during `npm run build`, installs Python deps inside that virtualenv, and starts FastAPI from `.venv/bin/uvicorn` (PEP 668-safe).
