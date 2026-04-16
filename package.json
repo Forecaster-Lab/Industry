@@ -1,0 +1,10 @@
+{
+  "name": "industry-analysis-platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Compatibility wrapper for Render Node-style build/start commands.",
+  "scripts": {
+    "build": "sh -c 'python3 -m venv .venv && .venv/bin/pip install -r requirements.txt'",
+    "start": "sh -c '.venv/bin/uvicorn src.web.app:app --host 0.0.0.0 --port ${PORT:-8000}'"
+  }
+}
