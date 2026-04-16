@@ -1,0 +1,10 @@
+{
+  "name": "industry-analysis-platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Compatibility wrapper for Render Node-style build/start commands.",
+  "scripts": {
+    "build": "echo 'No Node asset build required for FastAPI backend.'",
+    "start": "sh -c 'pip install -r requirements.txt && uvicorn src.web.app:app --host 0.0.0.0 --port ${PORT:-8000}'"
+  }
+}
