@@ -87,3 +87,18 @@ If you must keep:
 - Start Command: `npm start` (or `npm run start`)
 
 this repo now includes a compatibility `package.json` that creates a local `.venv` during `npm run build`, installs Python deps inside that virtualenv, and starts FastAPI from `.venv/bin/uvicorn` (PEP 668-safe).
+
+
+## Alpha Vantage default source execution
+
+The platform now supports a read/write data region (`data_region/raw`, `data_region/processed`) and uses Alpha Vantage as the default dataset source when API key is available.
+
+```bash
+export ALPHA_VANTAGE_API_KEY="YOUR_KEY"
+python alpha_vantage_full_feature_model.py
+```
+
+In the web UI, click **Execute (Read API → Model → Plot)** to fetch data (Alpha Vantage or synthetic fallback), run the model, and draw large result graphs.
+
+
+> Note: The code currently includes an embedded default Alpha Vantage key for quick start.

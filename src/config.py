@@ -28,6 +28,7 @@ class PlatformDefaults:
     target_col: str = "future_return"
     benchmark_col: str = "benchmark_return"
     default_model_type: str = "ridge"
+    default_dataset_source: str = "alpha_vantage"
     available_model_types: List[str] = field(
         default_factory=lambda: ["ridge", "random_forest", "lightgbm", "xgboost", "ranker", "ensemble"]
     )

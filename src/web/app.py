@@ -20,6 +20,8 @@ class TrainRequest(BaseModel):
     model_type: str = Field(default="ridge")
     feature_columns: Optional[List[str]] = None
     factor_weights: Optional[Dict[str, float]] = None
+    dataset_source: str = Field(default="alpha_vantage")
+    tickers: Optional[List[str]] = None
     top_quantile: float = 0.2
     bottom_quantile: float = 0.2
     neutralize_by: List[str] = Field(default_factory=list)
@@ -45,6 +47,8 @@ def options():
         "industries": list(APP_CONFIG.default_feature_map.keys()),
         "default_feature_map": APP_CONFIG.default_feature_map,
         "database_reserved": asdict(APP_CONFIG.database),
+        "dataset_sources": ["alpha_vantage", "synthetic"],
+        "default_dataset_source": APP_CONFIG.defaults.default_dataset_source,
     }
 
 
@@ -71,12 +75,12 @@ def train(req: TrainRequest):
         industry=req.industry,
         model_type=cfg.model_type,
         feature_columns=req.feature_columns,
+        factor_weights=req.factor_weights,
         top_quantile=cfg.top_quantile,
         bottom_quantile=cfg.bottom_quantile,
+        dataset_source=req.dataset_source,
+        tickers=req.tickers,
     )
-
-    if req.factor_weights:
-        result["applied_factor_weights"] = req.factor_weights
 
     result["notes"] = [
         "Database interface is reserved. Replace providers with SQL-backed providers when ready.",
