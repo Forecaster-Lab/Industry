@@ -44,6 +44,12 @@
       th:first-child,td:first-child { text-align:left; }
       .json-box { max-height:240px; overflow:auto; border:1px solid var(--line); border-radius:8px; padding:8px; background:#0b1125; font-size:11px; }
       .muted { color:var(--muted); }
+      /* ---- Progress bar ---- */
+      .progress-wrap { margin-top:8px; display:none; }
+      .progress-wrap.active { display:block; }
+      .progress-bar-outer { height:10px; border-radius:6px; background:#1b2440; border:1px solid var(--line); overflow:hidden; }
+      .progress-bar-inner { height:100%; width:0%; border-radius:5px; background:linear-gradient(90deg, var(--primary), var(--ok)); transition:width 0.4s ease; }
+      .progress-label { font-size:12px; color:var(--muted); margin-top:4px; display:flex; justify-content:space-between; }
       @media (max-width:1200px) { .grid { grid-template-columns:1fr; } .kpi-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
     </style>
   </head>
@@ -82,6 +88,16 @@
           <div class="actions">
             <button id="runBtn">Execute (Read API → Model → Plot)</button>
             <button class="secondary" id="resetBtn">Reset Defaults</button>
+          </div>
+
+          <div class="progress-wrap" id="progressWrap">
+            <div class="progress-bar-outer">
+              <div class="progress-bar-inner" id="progressBar" style="width:0%"></div>
+            </div>
+            <div class="progress-label">
+              <span id="progressStage">Idle</span>
+              <span id="progressPct">0%</span>
+            </div>
           </div>
         </aside>
 
@@ -229,30 +245,91 @@
         setRuntime('Idle');
       }
 
+      // ---- Progress helpers ----
+      const progressWrap = document.getElementById('progressWrap');
+      const progressBar = document.getElementById('progressBar');
+      const progressStage = document.getElementById('progressStage');
+      const progressPct = document.getElementById('progressPct');
+
+      function showProgress(show) {
+        progressWrap.className = 'progress-wrap' + (show ? ' active' : '');
+      }
+
+      function setProgress(pct, stage) {
+        progressBar.style.width = Math.round(pct) + '%';
+        progressPct.textContent = Math.round(pct) + '%';
+        progressStage.textContent = stage;
+      }
+
+      let _pollTimer = null;
+      let _pollTaskId = null;
+
+      function startPolling(taskId) {
+        _pollTaskId = taskId;
+        setProgress(0, 'Starting...');
+        showProgress(true);
+        _poll();
+      }
+
+      async function _poll() {
+        if (!_pollTaskId) return;
+        try {
+          const res = await fetch('/api/train/progress?task_id=' + _pollTaskId);
+          const info = await res.json();
+          setProgress(info.pct, info.stage);
+          if (info.done) {
+            if (info.result) {
+              const data = info.result;
+              renderKpis(data.metrics || {});
+              renderBacktest(data.backtest || []);
+              renderModelChart(data.model_graph || {});
+              jsonResult.textContent = JSON.stringify(data, null, 2);
+              setRuntime('Completed');
+              setTimeout(function() { showProgress(false); }, 2000);
+            } else if (info.error) {
+              progressBar.style.background = '#e0556a';
+              progressPct.textContent = 'ERR';
+              progressStage.textContent = 'Failed';
+              jsonResult.textContent = JSON.stringify({error: info.error}, null, 2);
+              setRuntime('Error');
+              setTimeout(function() {
+                showProgress(false);
+                progressBar.style.background = 'linear-gradient(90deg, var(--primary), var(--ok))';
+              }, 3000);
+            }
+            _pollTaskId = null;
+            return;
+          }
+        } catch (e) {
+          // Network error during poll — retry
+        }
+        _pollTimer = setTimeout(_poll, 600);
+      }
+
       async function runTrain() {
         setRuntime('Running...');
+        jsonResult.textContent = 'Starting...';
         const payload = {
           industry: industrySelect.value,
           model_type: modelSelect.value,
-          feature_columns: selectedFeaturesFromUI(),
-          factor_weights: factorWeightsFromUI(),
+          feature_columns: null,
+          factor_weights: null,
           top_quantile: Number(document.getElementById('topQ').value),
           bottom_quantile: Number(document.getElementById('bottomQ').value),
           dataset_source: datasetSourceSelect.value,
           tickers: tickersInput.value.split(',').map(v => v.trim()).filter(Boolean),
         };
-
-        jsonResult.textContent = 'Running...';
         try {
           const res = await fetch('/api/train', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
           const data = await res.json();
-          renderKpis(data.metrics || {});
-          renderBacktest(data.backtest || []);
-          renderModelChart(data.model_graph || {});
-          jsonResult.textContent = JSON.stringify(data, null, 2);
-          setRuntime('Completed');
+          if (data.task_id) {
+            startPolling(data.task_id);
+          } else if (data.error) {
+            jsonResult.textContent = JSON.stringify(data, null, 2);
+            setRuntime('Error');
+          }
         } catch (e) {
-          jsonResult.textContent = `Request failed: ${e.message}`;
+          jsonResult.textContent = 'Request failed: ' + e.message;
           setRuntime('Error');
         }
       }
