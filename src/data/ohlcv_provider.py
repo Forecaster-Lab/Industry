@@ -12,7 +12,7 @@ class OHLCVProvider(BaseDataProvider):
     def fetch(self, context: QueryContext) -> pd.DataFrame:
         rng = np.random.default_rng(42)
         dates = pd.date_range(context.start_date or "2024-01-31", periods=24, freq="ME")
-        tickers = ["AAA", "BBB", "CCC", "DDD"]
+        tickers = context.tickers or ["AAA", "BBB", "CCC", "DDD"]
         idx = pd.MultiIndex.from_product([dates, tickers], names=["date", "ticker"])
         frame = idx.to_frame(index=False)
         frame["close"] = rng.normal(100, 10, len(frame)).clip(1)
