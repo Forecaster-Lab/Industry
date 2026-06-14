@@ -30,7 +30,7 @@ class LowFrequencyModelConfig:
     benchmark_col: str = "benchmark_return"
     prediction_col: str = "prediction"
     score_col: str = "score"
-    min_train_rows: int = 50
+    min_train_rows: int = 20
     top_quantile: float = 0.2
     bottom_quantile: float = 0.2
     winsorize_limits: Tuple[float, float] = (0.01, 0.99)
@@ -47,7 +47,7 @@ class EpochAIConfig:
     target_col: str = "label"
     probability_col: str = "probability"
     prediction_col: str = "prediction"
-    min_train_rows: int = 80
+    min_train_rows: int = 20
     use_classifier: bool = True
 
 
@@ -145,7 +145,11 @@ class BaseLowFrequencyTradeModel(FactorEngineeringMixin):
         out = self.custom_feature_engineering(out)
         if not self.feature_cols:
             self.feature_cols = self.default_feature_columns()
-        DataValidator.require_columns(out, self.feature_cols)
+        # Filter feature_cols to only those present (FF5 may be skipped if <6 tickers)
+        available_cols = [c for c in self.feature_cols if c in out.columns]
+        self.feature_cols = available_cols
+        if not self.feature_cols:
+            raise ValueError("No feature columns available in the dataset. Check your ticker selection.")
         out = self.winsorize_cross_section(out, self.feature_cols, cfg.date_col, *cfg.winsorize_limits)
         out = self.simple_neutralize(out, self.feature_cols, cfg.neutralize_by, cfg.date_col)
         out = self.zscore_cross_section(out, self.feature_cols, cfg.date_col)
@@ -192,6 +196,9 @@ class BaseLowFrequencyTradeModel(FactorEngineeringMixin):
             return ranked
 
         portfolio = prediction_df.groupby(cfg.date_col, group_keys=False).apply(per_date)
+        # group_keys=False drops the date column from the result — restore it
+        if cfg.date_col not in portfolio.columns:
+            portfolio[cfg.date_col] = portfolio.index.get_level_values(cfg.date_col) if isinstance(portfolio.index, pd.MultiIndex) else prediction_df[cfg.date_col]
         return self.apply_industry_neutral(portfolio)
 
     def apply_industry_neutral(self, portfolio_df: pd.DataFrame) -> pd.DataFrame:
@@ -232,7 +239,8 @@ class BaseLowFrequencyTradeModel(FactorEngineeringMixin):
 
 class PhotonIndustryLowFrequencyTradeModel(BaseLowFrequencyTradeModel):
     def default_feature_columns(self) -> List[str]:
-        return ["ret_1m", "ret_6m", "volatility_1m", "order_growth", "inventory_growth", "gross_margin_ttm", "pe_ttm", "ps_ttm"]
+        return ["ret_1m", "ret_6m", "volatility_1m", "order_growth", "inventory_growth", "gross_margin_ttm", "pe_ttm", "ps_ttm",
+                "mkt_exposure", "smb_exposure", "hml_exposure", "rmw_exposure", "cma_exposure"]
 
     def custom_feature_engineering(self, df: pd.DataFrame) -> pd.DataFrame:
         out = df.copy()
@@ -243,12 +251,14 @@ class PhotonIndustryLowFrequencyTradeModel(BaseLowFrequencyTradeModel):
 
 class EnergyIndustryLowFrequencyTradeModel(BaseLowFrequencyTradeModel):
     def default_feature_columns(self) -> List[str]:
-        return ["ret_1m", "ret_12m", "volatility_3m", "beta_oil", "fcf_yield", "debt_to_equity", "ev_ebitda", "production_growth"]
+        return ["ret_1m", "ret_12m", "volatility_3m", "fcf_yield", "debt_to_equity", "ev_ebitda", "production_growth",
+                "mkt_exposure", "smb_exposure", "hml_exposure", "rmw_exposure", "cma_exposure"]
 
 
 class AIHardwareIndustryLowFrequencyTradeModel(BaseLowFrequencyTradeModel):
     def default_feature_columns(self) -> List[str]:
-        return ["ret_1m", "ret_3m", "ret_6m", "volatility_3m", "rev_growth_yoy", "gross_margin_ttm", "capex_ratio", "inventory_days", "pe_fwd", "ps_fwd"]
+        return ["ret_1m", "ret_3m", "ret_6m", "volatility_3m", "rev_growth_yoy", "gross_margin_ttm", "capex_ratio", "inventory_days", "pe_fwd", "ps_fwd",
+                "mkt_exposure", "smb_exposure", "hml_exposure", "rmw_exposure", "cma_exposure"]
 
     def custom_feature_engineering(self, df: pd.DataFrame) -> pd.DataFrame:
         out = df.copy()
@@ -273,6 +283,11 @@ class QuantumIndustryLowFrequencyTradeModel(BaseLowFrequencyTradeModel):
             "commercialization_stage_score",
             "technology_bottleneck_score",
             "capex_cycle_score",
+            "mkt_exposure",
+            "smb_exposure",
+            "hml_exposure",
+            "rmw_exposure",
+            "cma_exposure",
         ]
 
     def custom_feature_engineering(self, df: pd.DataFrame) -> pd.DataFrame:
