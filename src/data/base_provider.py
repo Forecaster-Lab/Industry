@@ -12,6 +12,7 @@ class QueryContext:
     start_date: Optional[str] = None
     end_date: Optional[str] = None
     filters: Optional[Dict[str, Any]] = None
+    tickers: Optional[list[str]] = None
 
 
 class BaseDataProvider(ABC):

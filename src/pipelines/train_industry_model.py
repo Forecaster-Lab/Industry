@@ -39,6 +39,16 @@ def train_industry_model(
     panel = build_dataset(include_quantum_business=True, dataset_source=dataset_source, tickers=tickers)
     train_df = panel[panel["industry"] == industry].dropna(subset=["future_return"])
 
+    # Validate minimum data before training
+    if len(train_df) < 10:
+        tickers_found = sorted(train_df["ticker"].unique())
+        raise ValueError(
+            f"Insufficient data for industry '{industry}'. "
+            f"Found {len(train_df)} rows across {len(tickers_found)} tickers: {tickers_found}. "
+            f"Need at least 10 rows (3+ tickers × 3+ months). "
+            f"Try using more tickers or switching to dataset_source='synthetic'."
+        )
+
     config = LowFrequencyModelConfig(model_type=model_type, top_quantile=top_quantile, bottom_quantile=bottom_quantile)
     model = industry_model_factory(industry, config)
     if feature_columns:

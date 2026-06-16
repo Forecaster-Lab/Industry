@@ -9,6 +9,7 @@ def merge_feature_panels(
     macro: pd.DataFrame,
     universe: pd.DataFrame,
     quantum_business_panel: pd.DataFrame | None = None,
+    ff5_panel: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
     panel = price.merge(fundamental, on=["date", "ticker"], how="left")
     panel = panel.merge(universe, on="ticker", how="left")
@@ -32,6 +33,9 @@ def merge_feature_panels(
         ]
         safe_quantum = quantum_business_panel[keep_cols].copy()
         panel = panel.merge(safe_quantum, on=["date", "ticker"], how="left")
+
+    if ff5_panel is not None and not ff5_panel.empty:
+        panel = panel.merge(ff5_panel, on=["date", "ticker"], how="left")
 
     panel["future_return"] = panel.groupby("ticker")["ret_1m"].shift(-1)
     return panel
