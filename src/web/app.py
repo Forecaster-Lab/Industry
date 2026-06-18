@@ -56,8 +56,9 @@ def options():
         "industries": list(APP_CONFIG.default_feature_map.keys()),
         "default_feature_map": APP_CONFIG.default_feature_map,
         "database_reserved": asdict(APP_CONFIG.database),
-        "dataset_sources": ["alpha_vantage", "synthetic"],
+        "dataset_sources": ["alpha_vantage", "synthetic", "massive"],
         "default_dataset_source": APP_CONFIG.defaults.default_dataset_source,
+        "massive_configured": bool(APP_CONFIG.defaults.massive_api_key),
         "ff5_factors": {
             "enabled": True,
             "factor_names": list(FF5_FACTOR_DESCRIPTIONS.keys()),

@@ -4,6 +4,30 @@ All notable changes to the Industry Analysis Platform.
 
 ---
 
+## [0.3.1] — 2026-06-18
+
+### Added
+- **Massive data source** (`src/data/massive_provider.py`)
+  - Fetches OHLCV + fundamentals from Massivest API (`api.massive.com`)
+  - API Key configurable via `src/config.py` (`massive_api_key`) or `MASSIVE_API_KEY` env var
+  - Auto-backfill: when massive fundamentals data is incomplete, synthetic fundamentals fill missing columns so training never blocks
+  - Frontend dropdown now includes `alpha_vantage`, `synthetic`, `massive`; `/api/options` returns `massive_configured` flag
+- **VotingRegressor ensemble** — replaced the old single-RF ensemble with `sklearn.ensemble.VotingRegressor` combining Ridge + RandomForest + LightGBM
+- **Ranker model** — changed from Ridge (α=0.6) to LightGBM (`learning_rate=0.03, num_leaves=41, min_child_samples=5`), giving it genuinely different behavior from plain Ridge
+
+### Changed
+- **Dependency** — `lightgbm` and `xgboost` are now required dependencies (previously they were optional and silently fell back to Ridge on import failure)
+
+### Fixed
+- **Silent model fallback** — `build_model()` used bare `except Exception` to catch `ModuleNotFoundError`, silently degrading LightGBM / XGBoost to Ridge when the libraries weren't installed. Changed to `except ImportError` with `logging.warning`.
+- **Fundamentals overwrite bug** — in `build_dataset.py`, after the `alpha_vantage`/`synthetic` branch, `fundamentals = FundamentalsProvider().fetch(context)` unconditionally overwrote the previously-assigned fundamentals, nullifying massive's real data. The line now only runs inside the `else` branch.
+- **NaN serialization** — backtest results containing NaN values (from sparse massive fundamentals) crashed `json.dumps` in the progress endpoint. Added `fillna(0.0)` safety layer in `train_industry_model.py`.
+- **Code quality** — 18 flake8 violations resolved (E402 import ordering, E127/E128 continuation indent, E501 line length, E261 inline comment spacing, E302/E305 blank lines, F401 unused import)
+- **ranker** and **ensemble** model types now produce genuinely different results from Ridge/RF
+
+### Version
+- App version bumped to `0.3.1`
+
 ## [0.3.0] — 2026-06-14
 
 ### Added

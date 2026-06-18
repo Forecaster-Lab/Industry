@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from typing import Any, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
+
+_logger = logging.getLogger(__name__)
 
 try:
     from sklearn.ensemble import RandomForestRegressor
@@ -60,21 +63,32 @@ class DataValidator:
 
 
 class FactorEngineeringMixin:
-    def winsorize_cross_section(self, df: pd.DataFrame, feature_cols: List[str], date_col: str, lower: float, upper: float) -> pd.DataFrame:
+    def winsorize_cross_section(
+        self, df: pd.DataFrame, feature_cols: List[str],
+        date_col: str, lower: float, upper: float,
+    ) -> pd.DataFrame:
         out = df.copy()
         for col in feature_cols:
-            out[col] = out.groupby(date_col)[col].transform(lambda s: s.clip(s.quantile(lower), s.quantile(upper)))
+            out[col] = out.groupby(date_col)[col].transform(
+                lambda s: s.clip(s.quantile(lower), s.quantile(upper))
+            )
         return out
 
     def zscore_cross_section(self, df: pd.DataFrame, feature_cols: List[str], date_col: str) -> pd.DataFrame:
         out = df.copy()
         for col in feature_cols:
             out[col] = out.groupby(date_col)[col].transform(
-                lambda s: (s - s.mean()) / (s.std() if s.std() and not pd.isna(s.std()) else 1.0)
+                lambda s: (
+                    (s - s.mean())
+                    / (s.std() if s.std() and not pd.isna(s.std()) else 1.0)
+                )
             )
         return out
 
-    def simple_neutralize(self, df: pd.DataFrame, feature_cols: List[str], neutralize_by: List[str], date_col: str) -> pd.DataFrame:
+    def simple_neutralize(
+        self, df: pd.DataFrame, feature_cols: List[str],
+        neutralize_by: List[str], date_col: str,
+    ) -> pd.DataFrame:
         if not neutralize_by:
             return df
         out = df.copy()
@@ -104,13 +118,23 @@ class BaseLowFrequencyTradeModel(FactorEngineeringMixin):
         model_type = self.config.model_type.lower()
         estimator = Ridge(alpha=1.0)
         if model_type == "random_forest":
-            estimator = RandomForestRegressor(n_estimators=300, max_depth=6, min_samples_leaf=8, random_state=42, n_jobs=-1)
+            estimator = RandomForestRegressor(
+                n_estimators=300, max_depth=6, min_samples_leaf=8,
+                random_state=42, n_jobs=-1,
+            )
         elif model_type == "lightgbm":
             try:
                 from lightgbm import LGBMRegressor
 
-                estimator = LGBMRegressor(n_estimators=300, learning_rate=0.05, num_leaves=31, random_state=42)
-            except Exception:
+                estimator = LGBMRegressor(
+                    n_estimators=300, learning_rate=0.05,
+                    num_leaves=31, random_state=42,
+                )
+            except ImportError:
+                _logger.warning(
+                    "lightgbm not installed — falling back to Ridge."
+                    " Install with: pip install lightgbm"
+                )
                 estimator = Ridge(alpha=1.0)
         elif model_type == "xgboost":
             try:
@@ -124,18 +148,56 @@ class BaseLowFrequencyTradeModel(FactorEngineeringMixin):
                     colsample_bytree=0.8,
                     random_state=42,
                 )
-            except Exception:
+            except ImportError:
+                _logger.warning(
+                    "xgboost not installed — falling back to Ridge."
+                    " Install with: pip install xgboost"
+                )
                 estimator = Ridge(alpha=1.0)
         elif model_type == "ranker":
-            estimator = Ridge(alpha=0.6)
+            try:
+                from lightgbm import LGBMRegressor
+
+                estimator = LGBMRegressor(
+                    n_estimators=300,
+                    learning_rate=0.03,
+                    num_leaves=41,
+                    min_child_samples=5,
+                    random_state=42,
+                )
+            except ImportError:
+                _logger.warning(
+                    "lightgbm not installed — falling back to Ridge(alpha=0.6)."
+                )
+                estimator = Ridge(alpha=0.6)
         elif model_type == "ensemble":
-            estimator = RandomForestRegressor(n_estimators=150, max_depth=5, random_state=42, n_jobs=-1)
+            estimator = self._make_voting_ensemble()
 
         return Pipeline([
             ("imputer", SimpleImputer(strategy="median")),
             ("scaler", StandardScaler()),
             ("model", estimator),
         ])
+
+    def _make_voting_ensemble(self):
+        """Build a VotingRegressor that combines Ridge + RF + LGBM."""
+        from sklearn.ensemble import VotingRegressor
+        from sklearn.linear_model import Ridge as _Ridge
+
+        voters = [("ridge", _Ridge(alpha=1.0))]
+        voters.append(("rf", RandomForestRegressor(
+            n_estimators=200, max_depth=5,
+            random_state=42, n_jobs=-1,
+        )))
+        try:
+            from lightgbm import LGBMRegressor
+            voters.append(("lgbm", LGBMRegressor(
+                n_estimators=150, learning_rate=0.04,
+                num_leaves=31, random_state=42,
+            )))
+        except ImportError:
+            _logger.warning("lightgbm not installed — ensemble will skip LGBM.")
+        return VotingRegressor(estimators=voters)
 
     def prepare_features(self, df: pd.DataFrame) -> pd.DataFrame:
         cfg = self.config
@@ -179,7 +241,9 @@ class BaseLowFrequencyTradeModel(FactorEngineeringMixin):
 
     def construct_portfolio(self, prediction_df: pd.DataFrame) -> pd.DataFrame:
         cfg = self.config
-        DataValidator.require_columns(prediction_df, [cfg.date_col, cfg.asset_col, cfg.score_col])
+        DataValidator.require_columns(
+            prediction_df, [cfg.date_col, cfg.asset_col, cfg.score_col],
+        )
 
         def per_date(g: pd.DataFrame) -> pd.DataFrame:
             ranked = g.sort_values(cfg.score_col, ascending=False).copy()
@@ -198,7 +262,11 @@ class BaseLowFrequencyTradeModel(FactorEngineeringMixin):
         portfolio = prediction_df.groupby(cfg.date_col, group_keys=False).apply(per_date)
         # group_keys=False drops the date column from the result — restore it
         if cfg.date_col not in portfolio.columns:
-            portfolio[cfg.date_col] = portfolio.index.get_level_values(cfg.date_col) if isinstance(portfolio.index, pd.MultiIndex) else prediction_df[cfg.date_col]
+            portfolio[cfg.date_col] = (
+                portfolio.index.get_level_values(cfg.date_col)
+                if isinstance(portfolio.index, pd.MultiIndex)
+                else prediction_df[cfg.date_col]
+            )
         return self.apply_industry_neutral(portfolio)
 
     def apply_industry_neutral(self, portfolio_df: pd.DataFrame) -> pd.DataFrame:
@@ -218,7 +286,9 @@ class BaseLowFrequencyTradeModel(FactorEngineeringMixin):
         df = portfolio_df.copy().sort_values([cfg.asset_col, cfg.date_col])
         df["prev_weight"] = df.groupby(cfg.asset_col)["weight"].shift(1).fillna(0.0)
         df["turnover_component"] = (df["weight"] - df["prev_weight"]).abs()
-        df["holding_continuity_flag"] = ((df["weight"] != 0) & (df["prev_weight"] != 0)).astype(int)
+        df["holding_continuity_flag"] = (
+            (df["weight"] != 0) & (df["prev_weight"] != 0)
+        ).astype(int)
         df["gross_pnl"] = df["weight"] * df[realized_col]
         cost_rate = (cfg.transaction_cost_bps + cfg.slippage_bps) / 10_000
         df["trading_cost"] = df["turnover_component"] * cost_rate
@@ -231,7 +301,10 @@ class BaseLowFrequencyTradeModel(FactorEngineeringMixin):
             holding_continuity=("holding_continuity_flag", "mean"),
             benchmark_return=(cfg.benchmark_col, "first"),
         ).reset_index()
-        summary["excess_return"] = summary["net_return"] - summary["benchmark_return"].fillna(0.0)
+        summary["excess_return"] = (
+            summary["net_return"]
+            - summary["benchmark_return"].fillna(0.0)
+        )
         summary["cum_net_return"] = (1 + summary["net_return"]).cumprod() - 1
         summary["cum_excess_return"] = (1 + summary["excess_return"]).cumprod() - 1
         return summary
@@ -239,8 +312,12 @@ class BaseLowFrequencyTradeModel(FactorEngineeringMixin):
 
 class PhotonIndustryLowFrequencyTradeModel(BaseLowFrequencyTradeModel):
     def default_feature_columns(self) -> List[str]:
-        return ["ret_1m", "ret_6m", "volatility_1m", "order_growth", "inventory_growth", "gross_margin_ttm", "pe_ttm", "ps_ttm",
-                "mkt_exposure", "smb_exposure", "hml_exposure", "rmw_exposure", "cma_exposure"]
+        return [
+            "ret_1m", "ret_6m", "volatility_1m", "order_growth",
+            "inventory_growth", "gross_margin_ttm", "pe_ttm", "ps_ttm",
+            "mkt_exposure", "smb_exposure", "hml_exposure",
+            "rmw_exposure", "cma_exposure",
+        ]
 
     def custom_feature_engineering(self, df: pd.DataFrame) -> pd.DataFrame:
         out = df.copy()
@@ -251,19 +328,32 @@ class PhotonIndustryLowFrequencyTradeModel(BaseLowFrequencyTradeModel):
 
 class EnergyIndustryLowFrequencyTradeModel(BaseLowFrequencyTradeModel):
     def default_feature_columns(self) -> List[str]:
-        return ["ret_1m", "ret_12m", "volatility_3m", "fcf_yield", "debt_to_equity", "ev_ebitda", "production_growth",
-                "mkt_exposure", "smb_exposure", "hml_exposure", "rmw_exposure", "cma_exposure"]
+        return [
+            "ret_1m", "ret_12m", "volatility_3m", "fcf_yield",
+            "debt_to_equity", "ev_ebitda", "production_growth",
+            "mkt_exposure", "smb_exposure", "hml_exposure",
+            "rmw_exposure", "cma_exposure",
+        ]
 
 
 class AIHardwareIndustryLowFrequencyTradeModel(BaseLowFrequencyTradeModel):
     def default_feature_columns(self) -> List[str]:
-        return ["ret_1m", "ret_3m", "ret_6m", "volatility_3m", "rev_growth_yoy", "gross_margin_ttm", "capex_ratio", "inventory_days", "pe_fwd", "ps_fwd",
-                "mkt_exposure", "smb_exposure", "hml_exposure", "rmw_exposure", "cma_exposure"]
+        return [
+            "ret_1m", "ret_3m", "ret_6m", "volatility_3m",
+            "rev_growth_yoy", "gross_margin_ttm", "capex_ratio",
+            "inventory_days", "pe_fwd", "ps_fwd",
+            "mkt_exposure", "smb_exposure", "hml_exposure",
+            "rmw_exposure", "cma_exposure",
+        ]
 
     def custom_feature_engineering(self, df: pd.DataFrame) -> pd.DataFrame:
         out = df.copy()
         if {"rev_growth_yoy", "gross_margin_ttm", "inventory_days"}.issubset(out.columns):
-            out["ai_hardware_supply_demand_score"] = out["rev_growth_yoy"] + out["gross_margin_ttm"] - 0.01 * out["inventory_days"]
+            out["ai_hardware_supply_demand_score"] = (
+                out["rev_growth_yoy"]
+                + out["gross_margin_ttm"]
+                - 0.01 * out["inventory_days"]
+            )
         return out
 
 

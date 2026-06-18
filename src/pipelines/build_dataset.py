@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import pandas as pd
 
+from src.config import APP_CONFIG
 from src.data.alpha_vantage_provider import AlphaVantageProvider
 from src.data.base_provider import QueryContext
 from src.data.fundamentals_provider import FundamentalsProvider
 from src.data.macro_provider import MacroProvider
+from src.data.massive_provider import MassiveProvider
 from src.data.ohlcv_provider import OHLCVProvider
 from src.data.quantum_signal_provider import demo_quantum_documents, demo_quantum_events, demo_quantum_profiles
 from src.data.storage import LocalDataRegion
@@ -18,8 +20,10 @@ from src.features.quantum_business_engine import LLMWorkflowConfig, QuantumIndus
 
 
 DEFAULT_TICKERS = ["NVDA", "AMD", "AVGO", "MSFT", "XOM", "SHEL", "IONQ", "RGTI"]
-_DEFAULT_INDUSTRIES = ["ai_hardware", "ai_hardware", "photonics", "ai_hardware",
-                        "energy", "energy", "quantum", "quantum"]
+_DEFAULT_INDUSTRIES = [
+    "ai_hardware", "ai_hardware", "photonics", "ai_hardware",
+    "energy", "energy", "quantum", "quantum",
+]
 
 
 def build_dataset(
@@ -44,10 +48,33 @@ def build_dataset(
                 f"Free tier is limited to 25 calls/day; 8 tickers use 8 calls per run. "
                 f"Use dataset_source='synthetic' for development, or wait for the daily reset."
             ) from e
+    elif source == "massive":
+        massive = MassiveProvider(api_key=APP_CONFIG.defaults.massive_api_key or None)
+        combined = massive.fetch(context)
+        ohlcv_cols = ["date", "ticker", "open", "high", "low", "close", "volume"]
+        ohlcv = (
+            combined[ohlcv_cols].copy()
+            if all(c in combined.columns for c in ohlcv_cols)
+            else massive.fetch_ohlcv(context)
+        )
+        fundamentals = massive.fetch_fundamentals(context)
+
+        # Fallback: if massive fundamentals lack critical columns, backfill with synthetic
+        _critical_cols = [
+            "rev_growth_yoy", "gross_margin_ttm", "pe_fwd",
+            "ps_fwd", "capex_ratio", "inventory_days", "fcf_yield",
+            "debt_to_equity", "ev_ebitda", "production_growth",
+        ]
+        _missing = [c for c in _critical_cols if c in fundamentals.columns and fundamentals[c].isna().all()]
+        if _missing:
+            logger = __import__("logging").getLogger(__name__)
+            logger.info("Massive fundamentals missing %s — backfilling with synthetic", _missing)
+            syn_fund = FundamentalsProvider().fetch(context)
+            for col in _missing:
+                fundamentals[col] = syn_fund[col]
     else:
         ohlcv = OHLCVProvider().fetch(context)
-
-    fundamentals = FundamentalsProvider().fetch(context)
+        fundamentals = FundamentalsProvider().fetch(context)
     macro = MacroProvider().fetch(context)
     universe = UniverseProvider().fetch(context)
 

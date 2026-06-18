@@ -27,8 +27,11 @@ uvicorn src.web.app:app --reload --port 8000
 |------|------|---------|
 | `synthetic` | 确定性合成数据（固定随机种子） | 开发、调试、框架验证 |
 | `alpha_vantage` | Alpha Vantage API（免费端点） | 真实数据验证 |
+| `massive` | Massivest API（财报+OHLCV） | 真实数据验证 |
 
 Alpha Vantage 模式需要你自己的 API Key（免费申请：alphavantage.co）。将 Key 写入 `src/data/alpha_vantage_provider.py` 第 5 行的 `DEFAULT_ALPHA_VANTAGE_API_KEY` 即可。
+
+Massive 模式需要 API Key，写入 `src/config.py` 第 33 行的 `massive_api_key`（或设置环境变量 `MASSIVE_API_KEY`）。当 massive 财报数据不完整时，系统自动用合成基本面数据回填，确保训练流程不中断。
 
 ---
 
@@ -45,7 +48,8 @@ src/
 │   ├── base_provider.py              # QueryContext 基类
 │   ├── ohlcv_provider.py             # 合成行情
 │   ├── alpha_vantage_provider.py     # Alpha Vantage 真实行情
-│   ├── fundamentals_provider.py      # 基本面（含 FF5 专用字段）
+│   ├── massive_provider.py            # Massivest 真实行情+财报
+│   ├── fundamentals_provider.py      # 合成基本面（含 FF5 专用字段）
 │   ├── macro_provider.py             # 宏观指标
 │   └── universe_provider.py          # 行业分类
 ├── features/                         # 特征工程层
@@ -98,8 +102,8 @@ src/
 | `random_forest` | 随机森林 (300 树, depth=6) | 非线性、灵活 |
 | `lightgbm` | LightGBM (300 轮, lr=0.05) | 梯度提升、快速 |
 | `xgboost` | XGBoost (300 轮, depth=6) | 梯度提升、精细 |
-| `ranker` | Ridge (α=0.6) | 侧重排序 |
-| `ensemble` | 随机森林 (150 树, depth=5) | 更保守的集成 |
+| `ranker` | LightGBM (300 轮, lr=0.03, num_leaves=41) | 侧重排序区分度 |
+| `ensemble` | VotingRegressor (Ridge+RF+LGBM) | 三方集成投票 |
 
 ### Fama-French 五因子
 

@@ -145,12 +145,47 @@ class QuantumIndustryBusinessAnalysisEngine:
     def llm_event_scoring_workflow(self) -> List[Dict[str, str]]:
         """Reserved agentic workflow for future decision automation."""
         return [
-            {"step": "ingest", "description": "Collect SEC/IR/NIST/report content and keep available_date metadata."},
-            {"step": "extract", "description": "Extract entities, event_type, contract value, policy relevance, and bottleneck tags."},
-            {"step": "judge", "description": "LLM + rule ensemble scores event impact and commercialization stage shift."},
-            {"step": "evolve", "description": "Agent proposes new factor candidates and validation hypotheses."},
-            {"step": "approve", "description": "Human-in-the-loop review updates factor registry and production rules."},
-            {"step": "backtest", "description": "Run alpha pipeline and compare uplift vs baseline factors."},
+            {
+                "step": "ingest",
+                "description": (
+                    "Collect SEC/IR/NIST/report content "
+                    "and keep available_date metadata."
+                ),
+            },
+            {
+                "step": "extract",
+                "description": (
+                    "Extract entities, event_type, contract value, "
+                    "policy relevance, and bottleneck tags."
+                ),
+            },
+            {
+                "step": "judge",
+                "description": (
+                    "LLM + rule ensemble scores event impact "
+                    "and commercialization stage shift."
+                ),
+            },
+            {
+                "step": "evolve",
+                "description": (
+                    "Agent proposes new factor candidates "
+                    "and validation hypotheses."
+                ),
+            },
+            {
+                "step": "approve",
+                "description": (
+                    "Human-in-the-loop review updates factor registry "
+                    "and production rules."
+                ),
+            },
+            {
+                "step": "backtest",
+                "description": (
+                    "Run alpha pipeline and compare uplift vs baseline factors."
+                ),
+            },
         ]
 
     def _safe_tag(self, ticker: str, tag: str) -> float:
@@ -170,7 +205,10 @@ class QuantumIndustryBusinessAnalysisEngine:
             return {k: 0.0 for k in self.KEYWORD_MAP}
 
         merged = "\n".join(d.text for d in docs[-30:])
-        out = {k: self._keyword_score(merged, keys) for k, keys in self.KEYWORD_MAP.items()}
+        out = {
+            k: self._keyword_score(merged, keys)
+            for k, keys in self.KEYWORD_MAP.items()
+        }
         return out
 
     def _event_aggregates(self, ticker: str, as_of_date: pd.Timestamp) -> Dict[str, float]:
@@ -204,7 +242,10 @@ class QuantumIndustryBusinessAnalysisEngine:
                 event_features = self._event_aggregates(ticker, date)
                 upstream_exposure = 0.45 * self._safe_tag(ticker, "upstream") + 0.35 * doc_features["upstream_exposure"]
                 platform_exposure = 0.45 * self._safe_tag(ticker, "platform") + 0.35 * doc_features["platform_exposure"]
-                application_exposure = 0.45 * self._safe_tag(ticker, "application") + 0.35 * doc_features["application_exposure"]
+                application_exposure = (
+                    0.45 * self._safe_tag(ticker, "application")
+                    + 0.35 * doc_features["application_exposure"]
+                )
                 pqc_exposure = 0.4 * self._safe_tag(ticker, "security") + 0.5 * doc_features["pqc_exposure"]
 
                 rows.append({

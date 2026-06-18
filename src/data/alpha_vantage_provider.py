@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import os
-
-DEFAULT_ALPHA_VANTAGE_API_KEY = "H1FT1GT2JTLHD7GK"
 import time
 from dataclasses import dataclass
 from typing import Iterable, List, Optional
 
 import pandas as pd
 import requests
+
+DEFAULT_ALPHA_VANTAGE_API_KEY = "H1FT1GT2JTLHD7GK"
 
 
 @dataclass

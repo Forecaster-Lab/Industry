@@ -62,7 +62,10 @@ def demo_quantum_documents() -> list[QuantumDocument]:
             source="industry_reports",
             publish_date=pd.to_datetime("2024-04-30"),
             available_date=pd.to_datetime("2024-04-30"),
-            text="RF microwave control, fabrication yield improvement, and application optimization for advanced manufacturing.",
+            text=(
+                "RF microwave control, fabrication yield improvement, "
+                "and application optimization for advanced manufacturing."
+            ),
         ),
     ]
     return docs

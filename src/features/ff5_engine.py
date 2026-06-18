@@ -81,9 +81,10 @@ class FF5Config:
         "hml_exposure",
         "rmw_exposure",
         "cma_exposure",
-    ])# ---------------------------------------------------------------------------
+    ])  # ---------------------------------------------------------------------------
 # Engine
 # ---------------------------------------------------------------------------
+
 
 class FF5Engine:
     """Construct Fama-French five-factor exposures at the individual stock level.
@@ -175,7 +176,7 @@ class FF5Engine:
     ) -> pd.DataFrame:
         cfg = self.config
         fund_cols = [cfg.date_col, cfg.ticker_col, cfg.market_cap_col,
-                      cfg.bm_col, cfg.op_col, cfg.inv_col]
+                     cfg.bm_col, cfg.op_col, cfg.inv_col]
         ret_cols = [cfg.date_col, cfg.ticker_col, cfg.ret_col]
 
         bench_df = None
@@ -232,27 +233,60 @@ class FF5Engine:
         df["_is_small"] = (df[cfg.market_cap_col] <= cap_median).astype(float)
 
         # B/M groups
-        bm_hi = df[cfg.bm_col].quantile(1 - cfg.bm_high_pct) if df[cfg.bm_col].notna().sum() > 3 else df[cfg.bm_col].max()
-        bm_lo = df[cfg.bm_col].quantile(cfg.bm_low_pct) if df[cfg.bm_col].notna().sum() > 3 else df[cfg.bm_col].min()
-        df["_bm_group"] = pd.cut(df[cfg.bm_col],
+        bm_hi = (
+            df[cfg.bm_col].quantile(1 - cfg.bm_high_pct)
+            if df[cfg.bm_col].notna().sum() > 3
+            else df[cfg.bm_col].max()
+        )
+        bm_lo = (
+            df[cfg.bm_col].quantile(cfg.bm_low_pct)
+            if df[cfg.bm_col].notna().sum() > 3
+            else df[cfg.bm_col].min()
+        )
+        df["_bm_group"] = pd.cut(
+            df[cfg.bm_col],
             bins=[-np.inf, bm_lo, bm_hi, np.inf],
-            labels=["low", "neutral", "high"], duplicates="drop")
+            labels=["low", "neutral", "high"],
+            duplicates="drop",
+        )
         df["_smb_bm"] = df["_is_small"].map({1.0: 0.5, 0.0: -0.5})
 
         # OP groups
-        op_hi = df[cfg.op_col].quantile(1 - cfg.op_high_pct) if df[cfg.op_col].notna().sum() > 3 else df[cfg.op_col].max()
-        op_lo = df[cfg.op_col].quantile(cfg.op_low_pct) if df[cfg.op_col].notna().sum() > 3 else df[cfg.op_col].min()
-        df["_op_group"] = pd.cut(df[cfg.op_col],
+        op_hi = (
+            df[cfg.op_col].quantile(1 - cfg.op_high_pct)
+            if df[cfg.op_col].notna().sum() > 3
+            else df[cfg.op_col].max()
+        )
+        op_lo = (
+            df[cfg.op_col].quantile(cfg.op_low_pct)
+            if df[cfg.op_col].notna().sum() > 3
+            else df[cfg.op_col].min()
+        )
+        df["_op_group"] = pd.cut(
+            df[cfg.op_col],
             bins=[-np.inf, op_lo, op_hi, np.inf],
-            labels=["weak", "neutral", "robust"], duplicates="drop")
+            labels=["weak", "neutral", "robust"],
+            duplicates="drop",
+        )
         df["_smb_op"] = df["_is_small"].map({1.0: 0.5, 0.0: -0.5})
 
         # Inv groups
-        inv_lo = df[cfg.inv_col].quantile(cfg.inv_low_pct) if df[cfg.inv_col].notna().sum() > 3 else df[cfg.inv_col].min()
-        inv_hi = df[cfg.inv_col].quantile(1 - cfg.inv_high_pct) if df[cfg.inv_col].notna().sum() > 3 else df[cfg.inv_col].max()
-        df["_inv_group"] = pd.cut(df[cfg.inv_col],
+        inv_lo = (
+            df[cfg.inv_col].quantile(cfg.inv_low_pct)
+            if df[cfg.inv_col].notna().sum() > 3
+            else df[cfg.inv_col].min()
+        )
+        inv_hi = (
+            df[cfg.inv_col].quantile(1 - cfg.inv_high_pct)
+            if df[cfg.inv_col].notna().sum() > 3
+            else df[cfg.inv_col].max()
+        )
+        df["_inv_group"] = pd.cut(
+            df[cfg.inv_col],
             bins=[-np.inf, inv_lo, inv_hi, np.inf],
-            labels=["conservative", "neutral", "aggressive"], duplicates="drop")
+            labels=["conservative", "neutral", "aggressive"],
+            duplicates="drop",
+        )
         df["_smb_inv"] = df["_is_small"].map({1.0: 0.5, 0.0: -0.5})
 
         # SMB = triple-sort average
@@ -267,12 +301,13 @@ class FF5Engine:
             {"conservative": 1.0, "neutral": 0.0, "aggressive": -1.0}).fillna(0.0).astype(float)
 
         for tmp in ["_is_small", "_bm_group", "_op_group", "_inv_group",
-                     "_smb_bm", "_smb_op", "_smb_inv"]:
+                    "_smb_bm", "_smb_op", "_smb_inv"]:
             if tmp in df.columns:
                 del df[tmp]
-        return df# ---------------------------------------------------------------------------
+        return df  # ---------------------------------------------------------------------------
 # Convenience: factor names and descriptions
 # ---------------------------------------------------------------------------
+
 
 FF5_FACTOR_DESCRIPTIONS: Dict[str, str] = {
     "mkt_exposure": "Market beta proxy (market-cap rank percentile in cross-section)",
