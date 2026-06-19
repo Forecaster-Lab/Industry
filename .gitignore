@@ -12,4 +12,6 @@ test_web_poll.py
 verify_api.py
 verify_ff5.py
 run_tests.py
+check_api.py
+KRO.md
 src/features/.ff5_engine.py.krow-write-zig5yskd.tmp

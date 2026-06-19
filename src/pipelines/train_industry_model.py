@@ -64,11 +64,19 @@ def train_industry_model(
     portfolio = model.construct_portfolio(predicted)
     backtest = model.backtest(portfolio)
 
+    # --- NaN-safe marshalling ---
+    def _safe_list(series, decimals=8):
+        return series.fillna(0.0).round(decimals).tolist()
+
+    def _safe_scalar(val):
+        v = float(val)
+        return 0.0 if pd.isna(v) else v
+
     graph_payload = {
         "dates": backtest["date"].dt.strftime("%Y-%m-%d").tolist(),
-        "cum_net_return": backtest["cum_net_return"].round(8).tolist(),
-        "cum_excess_return": backtest["cum_excess_return"].round(8).tolist(),
-        "net_return": backtest["net_return"].round(8).tolist(),
+        "cum_net_return": _safe_list(backtest["cum_net_return"]),
+        "cum_excess_return": _safe_list(backtest["cum_excess_return"]),
+        "net_return": _safe_list(backtest["net_return"]),
         "factor_weights": applied_weights,
     }
 
@@ -76,13 +84,13 @@ def train_industry_model(
         "config": asdict(config),
         "feature_columns": model.feature_cols,
         "metrics": {
-            "last_cum_return": float(backtest["cum_net_return"].iloc[-1]),
-            "last_cum_excess_return": float(backtest["cum_excess_return"].iloc[-1]),
-            "avg_turnover": float(backtest["turnover"].mean()),
-            "avg_holding_continuity": float(backtest["holding_continuity"].mean()),
+            "last_cum_return": _safe_scalar(backtest["cum_net_return"].iloc[-1]),
+            "last_cum_excess_return": _safe_scalar(backtest["cum_excess_return"].iloc[-1]),
+            "avg_turnover": _safe_scalar(backtest["turnover"].mean()),
+            "avg_holding_continuity": _safe_scalar(backtest["holding_continuity"].mean()),
         },
         "model_graph": graph_payload,
-        "backtest": backtest.to_dict(orient="records"),
+        "backtest": backtest.fillna(0.0).to_dict(orient="records"),
     }
 
     if industry == "quantum":

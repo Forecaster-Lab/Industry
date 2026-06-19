@@ -14,6 +14,8 @@ class UniverseProvider(BaseDataProvider):
     def fetch(self, context: QueryContext) -> pd.DataFrame:
         all_industries = ["ai_hardware", "energy", "photonics", "quantum"]
         tickers = context.tickers or list(self._DEFAULT_INDUSTRIES.keys())
-        industries = [self._DEFAULT_INDUSTRIES.get(t, all_industries[i % len(all_industries)])
-                       for i, t in enumerate(tickers)]
+        industries = [
+            self._DEFAULT_INDUSTRIES.get(t, all_industries[i % len(all_industries)])
+            for i, t in enumerate(tickers)
+        ]
         return pd.DataFrame({"ticker": tickers, "industry": industries})

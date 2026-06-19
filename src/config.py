@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os as _os
 from dataclasses import dataclass, field
 from typing import Dict, List
 
@@ -29,6 +30,10 @@ class PlatformDefaults:
     benchmark_col: str = "benchmark_return"
     default_model_type: str = "ridge"
     default_dataset_source: str = "alpha_vantage"
+    massive_api_key: str = "RAppOmqeuiC_KDVARDdnp9pgbO7XASJo"
+    available_sources: List[str] = field(
+        default_factory=lambda: ["synthetic", "alpha_vantage", "massive"]
+    )
     available_model_types: List[str] = field(
         default_factory=lambda: ["ridge", "random_forest", "lightgbm", "xgboost", "ranker", "ensemble"]
     )
@@ -111,3 +116,8 @@ class AppConfig:
 
 
 APP_CONFIG = AppConfig()
+
+# Override from environment variable if set
+_massive_key = _os.environ.get("MASSIVE_API_KEY", "")
+if _massive_key:
+    APP_CONFIG.defaults.massive_api_key = _massive_key
